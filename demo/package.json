@@ -6,7 +6,7 @@
   "scripts": {
     "typecheck": "tsc --noEmit",
     "serve": "tsx src/server.ts",
-    "model": "bash scripts/fetch-model.sh && mlx_lm.server --model models/opline-0.8b/mlx-4bit --port 8080 --chat-template-args '{\"enable_thinking\":false}'",
+    "model": "bash scripts/serve-model.sh",
     "stt:setup": "bash stt/setup-local.sh",
     "stt:serve": "bash stt/serve-local.sh",
     "check": "tsx ../executor/src/selfcheck.ts"

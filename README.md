@@ -38,7 +38,11 @@ browser  ──instruction + [Lnn] document──▶  demo server
 ## Quickstart
 
 Requirements: Node 20+, the [`hf` CLI](https://huggingface.co/docs/huggingface_hub/guides/cli), and
-Python 3.10+ with `mlx-lm` on Apple silicon (`pip install mlx-lm`).
+Python 3.10+ with `mlx-lm` on Apple silicon:
+
+```bash
+pip install mlx-lm        # or: uv tool install mlx-lm
+```
 
 ```bash
 cd demo
@@ -48,6 +52,9 @@ cp config.example.json config.json
 npm run model     # terminal 1: downloads the 4-bit MLX model (424 MB), serves :8080
 npm run serve     # terminal 2: http://127.0.0.1:3000
 ```
+
+`npm run model` looks for `python3`/`python` with `mlx_lm` importable. If yours lives in a
+virtualenv, pass it explicitly: `MLX_PYTHON=.venv/bin/python npm run model`.
 
 Type an instruction into the box under the document and press Enter.
 
