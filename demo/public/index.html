@@ -1,0 +1,912 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Natural-language markdown editor</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23818cf8'/%3E%3Cpath d='M10 22l2-6 6-6 3 3-6 6-5 2z' fill='white'/%3E%3C/svg%3E">
+<script src="/vendor/marked.js"></script>
+<script src="/stt.js"></script>
+<style>
+  :root {
+    color-scheme: dark;
+    --bg: #050609;
+    --window: rgba(11, 13, 18, .88);
+    --panel: #0d1016;
+    --editor: #0a0c11;
+    --raised: #141821;
+    --line: #1b202b;
+    --line-soft: #141821;
+    --text: #e7eaf2;
+    --muted: #8b93a7;
+    --faint: #5a6275;
+    --accent: #8b8cf8;
+    --accent-soft: rgba(139, 140, 248, .14);
+    --cyan: #67e8f9;
+    --ok: #34d399;
+    --ok-soft: rgba(52, 211, 153, .12);
+    --err: #fb7185;
+    --err-soft: rgba(251, 113, 133, .10);
+    --warn: #fbbf24;
+    --mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, monospace;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    margin: 0; overflow: hidden;
+    font: 14px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+    color: var(--text);
+    background:
+      radial-gradient(1100px 720px at 10% 4%, rgba(99, 102, 241, .20), transparent 62%),
+      radial-gradient(980px 700px at 92% 96%, rgba(34, 211, 238, .12), transparent 60%),
+      radial-gradient(760px 560px at 74% 2%, rgba(168, 85, 247, .10), transparent 62%),
+      var(--bg);
+  }
+  body::after {
+    content: ""; position: fixed; inset: 0; pointer-events: none; opacity: .05;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+    mix-blend-mode: overlay;
+  }
+  .scene {
+    position: relative; height: 100vh; height: 100dvh;
+    display: grid; place-items: center; padding: 28px;
+  }
+  .scene::before {
+    content: ""; position: absolute; inset: 0; pointer-events: none;
+    background-image: radial-gradient(rgba(255, 255, 255, .055) 1px, transparent 1px);
+    background-size: 30px 30px;
+    mask-image: radial-gradient(ellipse 70% 65% at 50% 48%, #000 15%, transparent 78%);
+    -webkit-mask-image: radial-gradient(ellipse 70% 65% at 50% 48%, #000 15%, transparent 78%);
+    opacity: .5;
+  }
+  .window {
+    position: relative; z-index: 1;
+    width: min(1580px, calc(100vw - 56px));
+    height: min(920px, calc(100vh - 56px));
+    height: min(920px, calc(100dvh - 56px));
+    display: flex; flex-direction: column; overflow: hidden;
+    border: 1px solid rgba(255, 255, 255, .09); border-radius: 16px;
+    background: var(--window);
+    backdrop-filter: blur(42px) saturate(150%);
+    -webkit-backdrop-filter: blur(42px) saturate(150%);
+    box-shadow:
+      0 60px 140px -30px rgba(0, 0, 0, .92),
+      0 18px 50px -20px rgba(0, 0, 0, .7),
+      0 0 0 1px rgba(0, 0, 0, .55),
+      inset 0 1px 0 rgba(255, 255, 255, .07);
+  }
+  .titlebar {
+    position: relative; flex-shrink: 0; height: 54px;
+    display: grid; grid-template-columns: 1fr auto 1fr; align-items: center;
+    padding: 0 18px;
+    border-bottom: 1px solid var(--line-soft);
+    background: linear-gradient(180deg, rgba(255, 255, 255, .035), rgba(255, 255, 255, 0));
+  }
+  .lights { display: flex; gap: 8px; align-items: center; }
+  .light {
+    width: 12px; height: 12px; border-radius: 50%;
+    border: .5px solid rgba(0, 0, 0, .35);
+    box-shadow: inset 0 .5px 1px rgba(255, 255, 255, .35);
+  }
+  .light.red { background: #ff5f57; }
+  .light.yellow { background: #febc2e; }
+  .light.green { background: #28c840; }
+  .title {
+    display: flex; align-items: center; gap: 9px; justify-self: center;
+    font-size: 12.5px; letter-spacing: -.005em; white-space: nowrap;
+  }
+  .logo { display: block; flex-shrink: 0; filter: drop-shadow(0 2px 6px rgba(99, 102, 241, .45)); }
+  #titleFile {
+    color: var(--muted); font-family: var(--mono); font-size: 12px;
+    max-width: 300px; overflow: hidden; text-overflow: ellipsis;
+  }
+  .workspace {
+    flex: 1; min-height: 0; display: grid;
+    grid-template-columns: minmax(0, 1fr) 414px;
+    grid-template-rows: minmax(0, 1fr);
+  }
+  .editor-pane { display: flex; flex-direction: column; min-width: 0; min-height: 0; overflow: hidden; background: var(--editor); }
+  .pane-head {
+    flex-shrink: 0; height: 46px; display: flex; align-items: center; gap: 12px;
+    padding: 0 20px 0 16px; border-bottom: 1px solid var(--line-soft);
+    position: relative; z-index: 5;
+  }
+  .doc-switch { display: flex; align-items: center; }
+  .doc-name {
+    padding-left: 2px; color: var(--text);
+    font: 600 12.5px/1 inherit; letter-spacing: -.005em;
+  }
+  .pane-meta {
+    margin-left: auto; display: flex; align-items: center; gap: 7px;
+    font: 11px/1 var(--mono); color: var(--faint);
+  }
+  .pane-meta .sep { color: #333a48; }
+  .icon-btn {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 26px; height: 26px; margin-left: 4px; border-radius: 7px;
+    border: 1px solid transparent; background: transparent; color: var(--faint);
+    cursor: pointer; font-size: 13px;
+  }
+  .icon-btn:hover { color: var(--text); background: rgba(255, 255, 255, .05); border-color: var(--line); }
+
+  .doc { flex: 1; min-height: 0; overflow-y: auto; padding: 22px 0 44px; scroll-behavior: smooth; }
+  .doc::-webkit-scrollbar, .trace-body::-webkit-scrollbar { width: 11px; height: 11px; }
+  .doc::-webkit-scrollbar-thumb, .trace-body::-webkit-scrollbar-thumb {
+    background: #242b38; border-radius: 8px; border: 3px solid transparent; background-clip: content-box;
+  }
+  .doc::-webkit-scrollbar-thumb:hover, .trace-body::-webkit-scrollbar-thumb:hover {
+    background: #33405a; background-clip: content-box;
+  }
+  .doc::-webkit-scrollbar-track, .trace-body::-webkit-scrollbar-track { background: transparent; }
+
+  .line, .codeblock { display: flex; padding: 0 26px; }
+  .line { min-height: 1.85em; transition: background .2s; }
+  .line.heading-gap { padding-bottom: 7px; }
+  .line:hover { background: rgba(255, 255, 255, .022); }
+  .ln {
+    flex-shrink: 0; width: 3.4ch; margin-right: 20px; padding-top: 4px;
+    text-align: right; user-select: none;
+    font: 11.5px/1.6 var(--mono); color: var(--faint);
+  }
+  .line:hover .ln { color: var(--muted); }
+  .lc { flex: 1; min-width: 0; font-size: 15px; line-height: 1.85; }
+  .lc > :first-child { margin-top: 0; }
+  .lc > :last-child { margin-bottom: 0; }
+  .lc h1, .lc h2, .lc h3, .lc h4 { margin: .85em 0 .35em; line-height: 1.3; letter-spacing: -.015em; }
+  .lc h1 { font-size: 1.62em; font-weight: 680; }
+  .lc h2 { font-size: 1.25em; font-weight: 650; }
+  .lc h3 { font-size: 1.08em; font-weight: 640; }
+  .lc h4 { font-size: 1em; font-weight: 640; color: var(--muted); }
+  .lc p { margin: .35em 0; }
+  .lc ul, .lc ol { margin: .2em 0; padding-left: 1.35em; }
+  .lc li { margin: .16em 0; padding-left: .1em; }
+  .lc li::marker { color: #6e7690; }
+  .lc blockquote {
+    margin: .35em 0; padding: 2px 0 2px 14px;
+    border-left: 2px solid var(--accent); color: var(--muted);
+  }
+  .lc a { color: var(--cyan); text-decoration-thickness: 1px; text-underline-offset: 2px; }
+  .lc code {
+    font: 88% var(--mono); padding: .12em .38em; border-radius: 5px;
+    background: var(--raised); border: 1px solid var(--line); color: #c9cff7;
+  }
+  .lc img { max-width: 100%; border-radius: 10px; }
+  .codeblock {
+    flex-direction: column; margin: 12px 26px 12px; padding: 0;
+    border: 1px solid var(--line); border-radius: 11px; overflow: hidden; background: #0c0f15;
+  }
+  .codehead {
+    padding: 7px 13px; border-bottom: 1px solid var(--line-soft);
+    font: 600 10px/1 var(--mono); letter-spacing: .1em; text-transform: uppercase; color: var(--faint);
+    background: rgba(255, 255, 255, .018);
+  }
+  .codeblock .cl { display: flex; padding: 0 13px; }
+  .codeblock .cl .ln { line-height: 1.75; padding-top: 3px; margin-right: 16px; }
+  .codeblock .cl code {
+    flex: 1; padding: 1.5px 0; background: none; border: 0; border-radius: 0;
+    white-space: pre-wrap; overflow-wrap: anywhere;
+    font: 12.5px/1.75 var(--mono); color: #c9d2e3;
+  }
+  .line.changed { animation: flashLine 1.9s ease-out; }
+  .codeblock .cl.changed { animation: flashLine 1.9s ease-out; }
+  @keyframes flashLine {
+    0% { background: rgba(139, 140, 248, .30); }
+    55% { background: rgba(139, 140, 248, .13); }
+    100% { background: transparent; }
+  }
+
+  .composer { flex-shrink: 0; padding: 14px 18px 15px; border-top: 1px solid var(--line-soft); background: var(--panel); }
+  .voice {
+    display: flex; align-items: center; gap: 16px;
+    padding: 12px 16px 12px 12px; border-radius: 16px;
+    border: 1px solid var(--line);
+    background: linear-gradient(180deg, rgba(255, 255, 255, .035), rgba(255, 255, 255, .008));
+    transition: border-color .2s, box-shadow .2s, background .2s;
+  }
+  .voice.listening {
+    border-color: rgba(139, 140, 248, .62);
+    box-shadow: 0 0 0 4px rgba(139, 140, 248, .10), 0 14px 36px -16px rgba(99, 102, 241, .75);
+    background: linear-gradient(180deg, rgba(139, 140, 248, .10), rgba(255, 255, 255, .012));
+  }
+  .voice.error { border-color: rgba(251, 113, 133, .45); background: linear-gradient(180deg, rgba(251, 113, 133, .06), rgba(255, 255, 255, .01)); }
+  .voice.busy .mic { filter: grayscale(.5) brightness(.85); cursor: default; }
+
+  .mic {
+    position: relative; flex-shrink: 0; width: 56px; height: 56px;
+    display: grid; place-items: center; border: 0; border-radius: 50%;
+    color: #fff; cursor: pointer; touch-action: none;
+    background: linear-gradient(140deg, #6366f1, #8b5cf6);
+    box-shadow: 0 10px 26px -10px rgba(99, 102, 241, .95), inset 0 1px 0 rgba(255, 255, 255, .28);
+    transition: transform .1s, filter .15s, background .2s;
+  }
+  .mic[hidden] { display: none; }
+  .mic:hover:not(:disabled) { filter: brightness(1.1); }
+  .mic:active:not(:disabled) { transform: scale(.97); }
+  .mic svg { width: 23px; height: 23px; }
+  .mic.recording { background: linear-gradient(140deg, #e11d48, #fb7185); }
+  .mic.recording::before, .mic.recording::after {
+    content: ""; position: absolute; inset: -5px; border-radius: 50%;
+    border: 1px solid rgba(251, 113, 133, .55); animation: micRing 1.6s infinite ease-out;
+  }
+  .mic.recording::after { animation-delay: .55s; }
+  @keyframes micRing { from { transform: scale(.92); opacity: .85; } to { transform: scale(1.55); opacity: 0; } }
+
+  .voice-copy { flex: 1; min-width: 0; }
+  .voice-title {
+    font-size: 15px; font-weight: 600; line-height: 1.4; letter-spacing: -.01em;
+    color: var(--text); overflow: hidden;
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+  }
+  .voice.listening .voice-title { color: #eeebff; }
+  .voice.listening .voice-title::after {
+    content: "▍"; margin-left: 2px; color: var(--accent);
+    animation: caret 1s steps(2, start) infinite;
+  }
+  @keyframes caret { 50% { opacity: 0; } }
+  .voice-sub { margin-top: 2px; font-size: 11.5px; line-height: 1.4; color: var(--muted); }
+  .voice.listening .voice-sub { color: #a8aaff; }
+  .voice.error .voice-sub { color: #ffa7b5; }
+  .wave { display: none; align-items: center; gap: 3px; height: 22px; flex-shrink: 0; }
+  .voice.listening .wave { display: flex; }
+  .wave i { display: block; width: 3px; height: 20px; border-radius: 2px; background: linear-gradient(180deg, #c4b5fd, #6366f1); animation: wave 1s infinite ease-in-out; }
+  .wave i:nth-child(2) { animation-delay: .08s; }
+  .wave i:nth-child(3) { animation-delay: .18s; }
+  .wave i:nth-child(4) { animation-delay: .28s; }
+  .wave i:nth-child(5) { animation-delay: .16s; }
+  .wave i:nth-child(6) { animation-delay: .06s; }
+  .wave i:nth-child(7) { animation-delay: .22s; }
+  @keyframes wave { 0%, 100% { transform: scaleY(.28); } 50% { transform: scaleY(1); } }
+
+  .voice-shortcut { display: flex; align-items: center; gap: 4px; flex-shrink: 0; color: var(--faint); font: 10.5px/1 var(--mono); }
+  .voice-shortcut kbd {
+    padding: 4px 6px; border-radius: 5px; border: 1px solid var(--line);
+    background: rgba(255, 255, 255, .03); font: 10.5px/1 var(--mono); color: var(--muted);
+  }
+  .voice-shortcut kbd.space { padding: 4px 11px; letter-spacing: .03em; }
+  .voice-shortcut span { margin-left: 5px; }
+  .voice.no-voice .voice-shortcut { display: none; }
+
+  .typed { display: flex; gap: 8px; margin-top: 10px; }
+  .typed input {
+    flex: 1; min-width: 0; padding: 9px 12px; border-radius: 9px;
+    border: 1px solid var(--line); background: var(--editor); color: var(--text);
+    font: 12.5px/1.4 var(--mono); outline: none;
+  }
+  .typed input::placeholder { color: var(--faint); }
+  .typed input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+  .typed input:disabled { opacity: .55; }
+  .typed button {
+    padding: 0 14px; border-radius: 9px; border: 1px solid var(--line);
+    background: var(--raised); color: var(--muted); cursor: pointer;
+    font: 600 10.5px/1 var(--mono); letter-spacing: .06em; text-transform: uppercase;
+  }
+  .typed button:hover:not(:disabled) { color: var(--text); border-color: var(--accent); }
+  .typed button:disabled { opacity: .45; cursor: default; }
+
+  .composer-foot {
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    margin-top: 9px; padding: 0 2px;
+    font: 10.5px/1.4 var(--mono); color: var(--faint);
+  }
+  .composer-foot .right { display: flex; gap: 12px; }
+  .composer-foot b { color: var(--muted); font-weight: 500; }
+
+  .trace { display: flex; flex-direction: column; min-width: 0; min-height: 0; overflow: hidden; border-left: 1px solid var(--line-soft); background: var(--panel); }
+  .trace-head {
+    flex-shrink: 0; height: 46px; display: flex; align-items: center; justify-content: space-between;
+    padding: 0 18px; border-bottom: 1px solid var(--line-soft);
+  }
+  .eyebrow {
+    font: 600 10px/1 var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--faint);
+  }
+  .trace-meta { font: 10.5px/1 var(--mono); color: var(--faint); }
+  .trace-meta.running { color: var(--accent); }
+  .trace-body { flex: 1; min-height: 0; overflow-y: auto; padding: 18px 18px 26px; display: flex; flex-direction: column; gap: 14px; }
+
+  .empty { display: flex; flex-direction: column; gap: 15px; margin: auto 0; padding: 8px 2px; }
+  .empty-kicker { display: flex; align-items: center; gap: 8px; font: 600 10px/1 var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--ok); }
+  .empty-kicker .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--ok); }
+  .empty h2 { margin: 0; font-size: 20px; line-height: 1.3; letter-spacing: -.02em; font-weight: 680; }
+  .legend { display: flex; flex-wrap: wrap; gap: 7px 12px; margin-top: 2px; padding-top: 14px; border-top: 1px solid var(--line-soft); }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; font: 10.5px/1 var(--mono); color: var(--faint); }
+  .k { padding: 2px 5px; border-radius: 4px; font: 700 9px/1 var(--mono); letter-spacing: .04em; }
+  .k-rep { color: #7dd3fc; background: rgba(125, 211, 252, .12); }
+  .k-del { color: #fda4af; background: rgba(253, 164, 175, .12); }
+  .k-add { color: #6ee7b7; background: rgba(110, 231, 183, .12); }
+  .k-app, .k-insb, .k-insa { color: #c4b5fd; background: rgba(196, 181, 253, .12); }
+  .k-rm { color: #fdba74; background: rgba(253, 186, 116, .12); }
+  .k-undo { color: var(--muted); background: rgba(255, 255, 255, .07); }
+
+  .step {
+    position: relative;
+    border: 1px solid var(--line); border-radius: 12px; background: rgba(255, 255, 255, .014); overflow: hidden;
+    transition: border-color .2s, box-shadow .2s;
+  }
+  .step.enter { animation: stepIn .3s cubic-bezier(.2, .7, .3, 1) both; }
+  .step.typing { border-color: rgba(139, 140, 248, .42); box-shadow: 0 0 0 1px rgba(139, 140, 248, .08), 0 16px 34px -26px rgba(99, 102, 241, .85); }
+  .step.typing::before {
+    content: ""; position: absolute; inset: 0; pointer-events: none;
+    background: linear-gradient(100deg, transparent 25%, rgba(139, 140, 248, .10) 48%, transparent 70%);
+    background-size: 220% 100%; animation: sweep .8s linear infinite;
+  }
+  @keyframes stepIn {
+    0% { opacity: 0; transform: translateY(10px) scale(.985); filter: blur(6px); }
+    70% { opacity: 1; transform: translateY(0) scale(1); filter: blur(0); }
+    100% { opacity: 1; }
+  }
+  @keyframes sweep { from { background-position: 200% 0; } to { background-position: -100% 0; } }
+  .step-head {
+    display: flex; align-items: center; gap: 8px; padding: 9px 12px;
+    border-bottom: 1px solid var(--line-soft); background: rgba(255, 255, 255, .016);
+  }
+  .step-idx { font: 700 9.5px/1 var(--mono); color: var(--accent); letter-spacing: .04em; }
+  .step-name { font: 600 10px/1 var(--mono); letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+  .step-spacer { flex: 1; }
+  .step-tag { font: 10px/1 var(--mono); color: var(--faint); }
+  .quote { padding: 12px 13px; font-size: 13px; line-height: 1.55; color: #dfe4f0; }
+  .quote::before { content: "“"; color: var(--faint); }
+  .quote::after { content: "”"; color: var(--faint); }
+  .quote.typing::after {
+    content: ""; display: inline-block; width: .5em; height: 1.05em; margin-left: 2px;
+    vertical-align: -0.15em; border-radius: 1px; background: var(--accent); animation: caret .9s steps(2, start) infinite;
+  }
+  .ops {
+    margin: 0; padding: 12px 13px; white-space: pre-wrap; overflow-wrap: anywhere;
+    font: 11.5px/1.85 var(--mono); color: #c7d0e2;
+  }
+  .ops .opk {
+    display: inline-block; padding: 1px 5px; border-radius: 4px; margin-right: 5px;
+    font: 700 9px/1.55 var(--mono); letter-spacing: .04em; vertical-align: 1px;
+  }
+  .ops .opk:empty { visibility: hidden; }
+  .ops.typing::after {
+    content: ""; display: inline-block; width: .55em; height: 1.05em; margin-left: 2px;
+    vertical-align: -0.15em; border-radius: 1px; background: var(--accent); animation: caret .9s steps(2, start) infinite;
+  }
+  .opk-REP { color: #7dd3fc; background: rgba(125, 211, 252, .13); }
+  .opk-DEL { color: #fda4af; background: rgba(253, 164, 175, .13); }
+  .opk-ADD { color: #6ee7b7; background: rgba(110, 231, 183, .13); }
+  .opk-INSB, .opk-INSA, .opk-APP { color: #c4b5fd; background: rgba(196, 181, 253, .13); }
+  .opk-RM { color: #fdba74; background: rgba(253, 186, 116, .13); }
+  .opk-UNDO { color: var(--muted); background: rgba(255, 255, 255, .07); }
+
+  .status { display: inline-flex; align-items: center; gap: 6px; font: 600 10px/1 var(--mono); letter-spacing: .04em; }
+  .status .sdot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+  .status.ok { color: var(--ok); }
+  .status.err { color: var(--err); }
+  .status.neutral { color: var(--warn); }
+  .status.wait { color: var(--faint); }
+
+  .diff { padding: 10px 0; font: 11.5px/1.7 var(--mono); }
+  .diff-head { padding: 0 13px 7px; color: var(--faint); font-size: 10px; letter-spacing: .03em; }
+  .dline { display: flex; padding: 0 13px; white-space: pre-wrap; overflow-wrap: anywhere; }
+  .dline .mark { flex-shrink: 0; width: 1.5em; color: var(--faint); user-select: none; }
+  .dline.add { background: rgba(52, 211, 153, .07); color: #b7f7db; }
+  .dline.add .mark { color: var(--ok); }
+  .dline.del { background: rgba(251, 113, 133, .07); color: #ffc6cf; }
+  .dline.del .mark { color: var(--err); }
+  .dline.same { color: var(--muted); }
+  .dline.same .mark { color: transparent; }
+  .diff-gap { padding: 3px 13px; font: 10px/1 var(--mono); letter-spacing: .22em; color: var(--faint); }
+  .dempty { padding: 2px 13px 12px; font: 11.5px/1.6 var(--mono); color: var(--muted); }
+  .errbox { padding: 12px 13px; display: flex; flex-direction: column; gap: 6px; }
+  .errbox p { margin: 0; font-size: 12.5px; line-height: 1.55; color: #ffc6cf; }
+  .errbox span { font: 11px/1.5 var(--mono); color: var(--faint); }
+  .skeleton { padding: 13px; display: flex; flex-direction: column; gap: 8px; }
+  .skeleton i {
+    display: block; height: 9px; border-radius: 5px;
+    background: linear-gradient(90deg, #171b24 25%, #232a37 50%, #171b24 75%);
+    background-size: 240% 100%; animation: shimmer 1.3s infinite linear;
+  }
+  .skeleton i:nth-child(2) { width: 76%; }
+  .skeleton i:nth-child(3) { width: 58%; }
+  @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -40% 0; } }
+  .waiting { padding: 12px 13px; font: 11.5px/1.5 var(--mono); color: var(--faint); }
+
+  @media (max-width: 1100px) {
+    .scene { padding: 16px; }
+    .workspace { grid-template-columns: minmax(0, 1fr) 360px; }
+  }
+  @media (max-width: 860px) {
+    .titlebar { grid-template-columns: auto 1fr auto; }
+    .title { justify-self: start; margin-left: 10px; }
+    .workspace { grid-template-columns: 1fr; }
+    .trace { display: none; }
+  }
+</style>
+</head>
+<body>
+<div class="scene">
+  <div class="window">
+    <header class="titlebar">
+      <div class="lights" aria-hidden="true">
+        <span class="light red"></span><span class="light yellow"></span><span class="light green"></span>
+      </div>
+      <div class="title">
+        <svg class="logo" width="18" height="18" viewBox="0 0 18 18" aria-hidden="true">
+          <defs><linearGradient id="lg" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0" stop-color="#818cf8"/><stop offset="1" stop-color="#a855f7"/>
+          </linearGradient></defs>
+          <rect width="18" height="18" rx="5" fill="url(#lg)"/>
+          <path d="M5.6 12.4l.9-3 3.4-3.4 1.5 1.5-3.4 3.4-3 0z" fill="#fff" fill-opacity=".95"/>
+        </svg>
+        <span id="titleFile">untitled.md</span>
+      </div>
+    </header>
+
+    <div class="workspace">
+      <main class="editor-pane">
+        <div class="pane-head">
+          <div class="doc-switch">
+            <span class="doc-name" id="docLabel">Untitled</span>
+          </div>
+          <div class="pane-meta">
+            <span id="lineCount">blank</span>
+            <span class="sep">·</span>
+            <span>markdown</span>
+            <button class="icon-btn" id="reloadBtn" title="Start a new blank file" aria-label="Start a new blank file">↻</button>
+          </div>
+        </div>
+        <div class="doc" id="preview"></div>
+        <div class="composer">
+          <div class="voice" id="voice">
+            <button class="mic" id="mic" type="button" hidden title="Hold to speak (Space)" aria-label="Hold to speak">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="9" y="2.5" width="6" height="11.5" rx="3"></rect>
+                <path d="M5.2 10.5v.7a6.8 6.8 0 0 0 13.6 0v-.7"></path>
+                <line x1="12" y1="18" x2="12" y2="21"></line>
+              </svg>
+            </button>
+            <div class="voice-copy">
+              <div class="voice-title" id="voiceTitle">Hold to speak</div>
+              <div class="voice-sub" id="voiceSub">Say the edit · release to run</div>
+            </div>
+            <div class="wave" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+            <div class="voice-shortcut"><kbd class="space">space</kbd><span>hold anywhere</span></div>
+          </div>
+          <form class="typed" id="typedForm" autocomplete="off">
+            <input id="typedInput" type="text" placeholder="…or type the edit and press Enter" aria-label="Edit instruction">
+            <button type="submit" id="typedSend">Run</button>
+          </form>
+          <div class="composer-foot">
+            <span>Voice or text in · one op out</span>
+          </div>
+        </div>
+      </main>
+
+      <aside class="trace">
+        <div class="trace-head">
+          <span class="eyebrow">Execution trace</span>
+          <span class="trace-meta" id="traceMeta">idle</span>
+        </div>
+        <div class="trace-body" id="trace" aria-live="polite"></div>
+      </aside>
+    </div>
+  </div>
+</div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+
+let file = null;
+let currentDoc = "";
+let busy = false;
+let timer = null;
+let traceGeneration = 0;
+let commandTyping = Promise.resolve();
+
+function setVoiceState(kind, title, sub) {
+  const voice = $("voice");
+  voice.classList.toggle("listening", kind === "listening");
+  voice.classList.toggle("error", kind === "error");
+  $("voiceTitle").textContent = title;
+  $("voiceSub").textContent = sub;
+}
+
+function voiceIdle() {
+  setVoiceState("idle", "Hold to speak", "Say the edit · release to run");
+}
+
+function splitDoc(doc) {
+  if (doc === "") return [""];
+  return doc.endsWith("\n") ? doc.slice(0, -1).split("\n") : doc.split("\n");
+}
+
+function render(doc) {
+  const lines = splitDoc(doc);
+  const html = [];
+  let i = 0;
+  while (i < lines.length) {
+    if (lines[i].trimStart().startsWith("```")) {
+      const fence = lines[i];
+      const start = i++;
+      const code = [];
+      while (i < lines.length && !lines[i].trimStart().startsWith("```")) code.push(lines[i++]);
+      i++;
+      const rows = code.map((c, j) =>
+        `<div class="cl" data-line="${start + 1 + j}"><span class="ln">${start + 1 + j}</span><code>${esc(c) || " "}</code></div>`).join("");
+      html.push(`<div class="codeblock"><div class="codehead">${esc(fence.trim().replace(/^`+ ?/, "")) || "code"}</div>${rows}</div>`);
+    } else {
+      const content = marked.parse(lines[i]).trim();
+      const h1Gap = /^#\s/.test(lines[i]) && /^#{1,6}\s/.test(lines[i + 1] ?? "") ? " heading-gap" : "";
+      html.push(`<div class="line${h1Gap}" data-line="${i + 1}"><span class="ln">${i + 1}</span><div class="lc">${content || "&nbsp;"}</div></div>`);
+      i++;
+    }
+  }
+  $("preview").innerHTML = html.join("") || `<div class="line"><span class="ln">1</span><div class="lc"><span style="color:var(--faint)">Empty document — describe what to create.</span></div></div>`;
+  $("lineCount").textContent = doc === "" ? "blank" : `${lines.length} ${lines.length === 1 ? "line" : "lines"}`;
+}
+
+function diffDocs(before, after) {
+  const a = before === "" ? [] : splitDoc(before);
+  const b = after === "" ? [] : splitDoc(after);
+  const n = a.length, m = b.length;
+  const dp = Array.from({ length: n + 1 }, () => new Uint16Array(m + 1));
+  for (let i = n - 1; i >= 0; i--) {
+    for (let j = m - 1; j >= 0; j--) {
+      dp[i][j] = a[i] === b[j] ? dp[i + 1][j + 1] + 1 : Math.max(dp[i + 1][j], dp[i][j + 1]);
+    }
+  }
+  const seq = [];
+  let i = 0, j = 0;
+  while (i < n && j < m) {
+    if (a[i] === b[j]) { seq.push({ t: "same", text: a[i], newLine: j + 1 }); i++; j++; }
+    else if (dp[i + 1][j] >= dp[i][j + 1]) { seq.push({ t: "del", text: a[i], newLine: j + 1 }); i++; }
+    else { seq.push({ t: "add", text: b[j], newLine: j + 1 }); j++; }
+  }
+  while (i < n) { seq.push({ t: "del", text: a[i], newLine: j + 1 }); i++; }
+  while (j < m) { seq.push({ t: "add", text: b[j], newLine: j + 1 }); j++; }
+
+  const keep = new Array(seq.length).fill(false);
+  seq.forEach((row, idx) => {
+    if (row.t === "same") return;
+    for (let k = Math.max(0, idx - 2); k <= Math.min(seq.length - 1, idx + 2); k++) keep[k] = true;
+  });
+
+  const hunks = [];
+  let cur = null;
+  for (let idx = 0; idx < seq.length; idx++) {
+    if (!keep[idx]) { if (cur) { hunks.push(cur); cur = null; } continue; }
+    if (!cur) cur = { at: seq[idx].newLine, rows: [] };
+    cur.rows.push(seq[idx]);
+  }
+  if (cur) hunks.push(cur);
+
+  const meaningful = (row) => row.t !== "same" && row.text.trim() !== "";
+  const changed = seq.filter(meaningful);
+  const cleanHunks = hunks.filter((hunk) => hunk.rows.some(meaningful));
+  return {
+    hunks: cleanHunks,
+    changed,
+    firstLine: changed[0]?.newLine ?? 1,
+    formattingOnly: !changed.length && seq.some((row) => row.t !== "same"),
+  };
+}
+
+function highlight(d) {
+  if (!d.changed.length) return;
+  const rows = $("preview").querySelectorAll("[data-line]");
+  const from = d.firstLine;
+  const to = d.changed[d.changed.length - 1].newLine;
+  let first = null;
+  for (const row of rows) {
+    const n = Number(row.dataset.line);
+    if (n >= from && n <= to) {
+      row.classList.add("changed");
+      first ??= row;
+    }
+  }
+  const anchor = first ?? $("preview").querySelector(`[data-line="${from}"]`);
+  anchor?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+}
+
+function opsHTML(op) {
+  if (!op || !op.trim()) return `<span style="color:var(--faint)">(empty response)</span>`;
+  return op.split("\n").filter((line) => line.trim() !== "").map((line) => {
+    const m = /^([A-Z]+)(?: (.*))?$/.exec(line);
+    if (!m) return esc(line);
+    return `<span class="opk opk-${m[1]}">${esc(m[1])}</span>${esc(m[2] ?? "")}`;
+  }).join("\n");
+}
+
+function diffHTML(d) {
+  if (!d.changed.length) {
+    return `<div class="dempty">${d.formattingOnly ? "Formatting normalized; no text change." : "No document change."}</div>`;
+  }
+  return d.hunks.map((hunk, h) => {
+    const head = `${h ? `<div class="diff-gap">⋯</div>` : ""}<div class="diff-head">@@ L${hunk.at} @@</div>`;
+    const rows = hunk.rows.map((row) => {
+      const mark = row.t === "add" ? "+" : row.t === "del" ? "−" : "";
+      return `<div class="dline ${row.t}"><span class="mark">${mark}</span><span>${esc(row.text) || " "}</span></div>`;
+    }).join("");
+    return head + rows;
+  }).join("");
+}
+
+const TYPE_MS = 300;
+const PANEL_MS = 300;
+const OVERLAP_MS = 50;
+
+function typeInto(el, step, duration = TYPE_MS) {
+  return new Promise((resolve) => {
+    if (!el) { resolve(); return; }
+    const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+    const parts = [];
+    let total = 0;
+    while (walker.nextNode()) {
+      const node = walker.currentNode;
+      const full = node.nodeValue;
+      if (!full) continue;
+      parts.push({ node, full });
+      total += full.length;
+    }
+    if (!total) { resolve(); return; }
+    const box = el.closest(".trace-body");
+    const stick = box ? box.scrollHeight - box.scrollTop - box.clientHeight < 24 : false;
+    const cps = total / duration;
+    parts.forEach(({ node }) => { node.nodeValue = ""; });
+    el.classList.add("typing");
+    step?.classList.add("typing");
+    const start = performance.now();
+    const finish = () => {
+      el.classList.remove("typing");
+      step?.classList.remove("typing");
+      resolve();
+    };
+    const tick = (now) => {
+      if (!el.isConnected) { finish(); return; }
+      const target = Math.min(total, Math.ceil((now - start) * cps));
+      let remain = target;
+      for (const { node, full } of parts) {
+        const n = Math.min(full.length, remain);
+        if (node.nodeValue.length !== n) node.nodeValue = full.slice(0, n);
+        remain -= n;
+        if (remain <= 0) break;
+      }
+      if (stick && box) box.scrollTop = box.scrollHeight;
+      if (now - start < duration) requestAnimationFrame(tick);
+      else finish();
+    };
+    requestAnimationFrame(tick);
+  });
+}
+
+
+function wait(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function statusOf(body) {
+  if (!body.ok) return { cls: "err", text: body.reason === "unchanged" ? "no change" : "rejected" };
+  if (/revert/i.test(body.message)) return { cls: "neutral", text: "reverted" };
+  return { cls: "ok", text: "applied" };
+}
+
+function drawThinking(command) {
+  const token = ++traceGeneration;
+  $("trace").innerHTML = `
+    <div class="step enter">
+      <div class="step-head"><span class="step-idx">01</span><span class="step-name">Command</span></div>
+      <div class="quote" id="traceCommand">${esc(command)}</div>
+    </div>`;
+  const quote = $("traceCommand");
+  const step = quote.closest(".step");
+  typeInto(quote, step);
+  commandTyping = wait(PANEL_MS - OVERLAP_MS);
+  $("trace").scrollTop = $("trace").scrollHeight;
+  return token;
+}
+
+async function appendOutput(op, opCount) {
+  $("trace").insertAdjacentHTML("beforeend", `
+    <div class="step enter">
+      <div class="step-head">
+        <span class="step-idx">02</span><span class="step-name">Model output</span>
+        <span class="step-spacer"></span><span class="step-tag">${opCount} ${opCount === 1 ? "op" : "ops"} · udiff-l</span>
+      </div>
+      <pre class="ops">${opsHTML(op)}</pre>
+    </div>`);
+  const step = $("trace").lastElementChild;
+  $("trace").scrollTop = $("trace").scrollHeight;
+  typeInto(step.querySelector(".ops"), step);
+  await wait(PANEL_MS - OVERLAP_MS);
+}
+
+async function appendExecutor(body, diff, st, ms) {
+  $("trace").insertAdjacentHTML("beforeend", `
+    <div class="step enter">
+      <div class="step-head">
+        <span class="step-idx">03</span><span class="step-name">Executor</span>
+        <span class="step-spacer"></span>
+        <span class="status ${st.cls}"><span class="sdot"></span>${st.text} · ${ms} ms</span>
+      </div>
+      ${diff ? `<div class="diff">${diffHTML(diff)}</div>` : `<div class="waiting">${esc(body.message || "")}</div>`}
+    </div>`);
+  const step = $("trace").lastElementChild;
+  $("trace").scrollTop = $("trace").scrollHeight;
+  await typeInto(step.querySelector(".diff, .waiting"), step);
+}
+
+async function drawTurn(command, body, ms, token = traceGeneration) {
+  if (token !== traceGeneration) return;
+  if (!$("traceCommand")) token = drawThinking(command);
+  const st = statusOf(body);
+  const diff = body.doc !== undefined ? diffDocs(body.docBefore ?? currentDoc, body.doc) : null;
+  const opCount = (body.op || "").split("\n").filter((l) => l.trim()).length;
+  $("traceMeta").textContent = `done · ${ms} ms`;
+  $("traceMeta").classList.remove("running");
+  await commandTyping;
+  if (token !== traceGeneration) return;
+  await appendOutput(body.op, opCount);
+  if (token !== traceGeneration) return;
+  await appendExecutor(body, diff, st, ms);
+}
+
+async function drawError(command, message, token = traceGeneration) {
+  if (token !== traceGeneration) return;
+  if (!$("traceCommand")) token = drawThinking(command);
+  $("traceMeta").textContent = "error";
+  $("traceMeta").classList.remove("running");
+  await commandTyping;
+  if (token !== traceGeneration) return;
+  $("trace").insertAdjacentHTML("beforeend", `
+    <div class="step enter">
+      <div class="step-head">
+        <span class="step-idx">02</span><span class="step-name">Model output</span>
+        <span class="step-spacer"></span><span class="status err"><span class="sdot"></span>error</span>
+      </div>
+      <div class="errbox">
+        <p>${esc(message)}</p>
+        <span>${/fetch failed|failed to fetch|networkerror|econnrefused|model request failed/i.test(message)
+          ? "The live model is required. Start it with <b>npm run model</b> in demo/."
+          : "The edit pipeline hit an internal error — this is a bug, not a model problem."}</span>
+      </div>
+    </div>`);
+  const step = $("trace").lastElementChild;
+  $("trace").scrollTop = $("trace").scrollHeight;
+  await typeInto(step.querySelector(".errbox"), step);
+}
+
+function drawEmpty() {
+  traceGeneration++;
+  $("trace").innerHTML = `
+    <div class="empty">
+      <div class="empty-kicker"><span class="dot"></span>ready</div>
+      <h2>Hold the mic.<br>Say what should change.</h2>
+      <div class="legend">
+        <span><b class="k k-rep">REP</b>replace line</span>
+        <span><b class="k k-del">DEL</b>delete line</span>
+        <span><b class="k k-add">ADD</b>insert line</span>
+        <span><b class="k k-app">APP</b>append</span>
+        <span><b class="k k-insb">INSB</b>insert before</span>
+        <span><b class="k k-insa">INSA</b>insert after</span>
+        <span><b class="k k-rm">RM</b>remove fragment</span>
+        <span><b class="k k-undo">UNDO</b>undo</span>
+      </div>
+    </div>`;
+}
+
+function setBusy(on) {
+  busy = on;
+  $("voice").classList.toggle("busy", on);
+  $("traceMeta").classList.toggle("running", on);
+  $("typedInput").disabled = on;
+  $("typedSend").disabled = on;
+  clearInterval(timer);
+  if (on) {
+    $("traceMeta").textContent = "running · 0.0s";
+    const t0 = performance.now();
+    timer = setInterval(() => {
+      $("traceMeta").textContent = `running · ${((performance.now() - t0) / 1000).toFixed(1)}s`;
+    }, 100);
+  }
+}
+
+async function run(command) {
+  command = (command || "").trim();
+  if (busy || !command || !file) return null;
+  setBusy(true);
+  const token = drawThinking(command);
+  const t0 = performance.now();
+  try {
+    const res = await fetch("/command", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ file, command }),
+    });
+    const body = await res.json();
+    const ms = Math.round(performance.now() - t0);
+    if (!res.ok || body.error) throw new Error(body.error || `request failed (${res.status})`);
+    drawTurn(command, body, ms, token);
+    if (typeof body.doc === "string") {
+      const d = diffDocs(body.docBefore ?? currentDoc, body.doc);
+      currentDoc = body.doc;
+      render(body.doc);
+      highlight(d);
+    }
+    return { ok: body.ok, reason: body.reason, message: body.message };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    drawError(command, message, token);
+    return { ok: false, error: message };
+  } finally {
+    setBusy(false);
+  }
+}
+
+function voiceOutcome(command, outcome) {
+  if (!outcome) return;
+  if (outcome.error) {
+    setVoiceState("error", command, "Model request failed — see the trace");
+  } else if (!outcome.ok) {
+    setVoiceState("error", command, `Rejected (${outcome.reason ?? "no match"}) — try rephrasing`);
+  }
+}
+
+async function newBlank() {
+  try {
+    const res = await fetch("/blank");
+    const body = await res.json();
+    if (!res.ok || body.error) throw new Error(body.error || `request failed (${res.status})`);
+    file = body.file;
+    currentDoc = body.doc;
+    $("titleFile").textContent = "untitled.md";
+    render(body.doc);
+    drawEmpty();
+    $("traceMeta").textContent = "idle";
+    $("traceMeta").classList.remove("running");
+    voiceIdle();
+  } catch (err) {
+    $("trace").innerHTML = `<div class="step"><div class="errbox"><p>${esc(err.message)}</p><span>Could not start a blank file.</span></div></div>`;
+  }
+}
+
+$("reloadBtn").onclick = () => newBlank();
+
+// Typed commands: same path as voice, so the trace and the document behave
+// identically whether the instruction was spoken or typed.
+$("typedForm").addEventListener("submit", (e) => {
+  e.preventDefault();
+  const command = $("typedInput").value.trim();
+  if (!command || busy) return;
+  $("typedInput").value = "";
+  void run(command).then((outcome) => voiceOutcome(command, outcome));
+});
+
+createMic({
+  button: $("mic"),
+  holdKey: "Space",
+  canStart: () => !busy,
+  onPress: () => setVoiceState("listening", "Listening…", "Release to transcribe and run"),
+  onRelease: voiceIdle,
+  onCancel: voiceIdle,
+  onPartial: (text) => {
+    const t = text.trim();
+    setVoiceState("listening", t || "Listening…", "Release to transcribe and run");
+  },
+  onFinal: (text) => {
+    voiceIdle();
+    const command = text.trim();
+    if (!command) return;
+    void run(command).then((outcome) => voiceOutcome(command, outcome));
+  },
+  onError: (message) => {
+    $("voice").classList.add("no-voice");
+    setVoiceState("error", "Voice unavailable", message);
+  },
+});
+
+fetch("/stt/health")
+  .then((r) => {
+    if (!r.ok) throw new Error("offline");
+  })
+  .catch(() => {
+    $("voice").classList.add("no-voice");
+    setVoiceState("error", "Voice server offline", "Type your edit below, or run npm run stt:serve");
+  });
+
+newBlank();
+</script>
+</body>
+</html>

@@ -1,0 +1,26 @@
+{
+  "name": "opline-demo",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "serve": "tsx src/server.ts",
+    "model": "bash scripts/fetch-model.sh && mlx_lm.server --model models/opline-0.8b/mlx-4bit --port 8080 --chat-template-args '{\"enable_thinking\":false}'",
+    "stt:setup": "bash stt/setup-local.sh",
+    "stt:serve": "bash stt/serve-local.sh",
+    "check": "tsx ../executor/src/selfcheck.ts"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.6",
+    "@types/node": "^26.5.0",
+    "@types/ws": "^8.18.1",
+    "tsx": "^4.23.13",
+    "typescript": "^5.6.0"
+  },
+  "dependencies": {
+    "express": "^5.2.1",
+    "marked": "^18.0.12",
+    "ws": "^8.21.3"
+  }
+}
