@@ -10,9 +10,18 @@ line five"*, a 0.8B model answers with exactly one edit op, and a deterministic 
 The model never regenerates the document. It emits a line-numbered, anchor-quoted op; the executor
 resolves and applies it, so every character the instruction did not mention stays byte-identical.
 
-<video src="docs/demo.mp4" poster="docs/poster.png" width="720" controls muted loop></video>
+<!-- GitHub only inlines video from user-attachments URLs (relative paths are
+     stripped). To show the player here: drag docs/demo.mp4 into a GitHub
+     issue or comment, copy the https://github.com/user-attachments/assets/…
+     URL, then replace the block below with:
+     <video src="THAT_URL" controls></video> -->
+<p align="center">
+  <a href="docs/demo.mp4">
+    <img src="docs/poster.png" width="720" alt="Opline demo: hold the mic, speak an edit, watch the op and the document update">
+  </a>
+</p>
 
-[Watch the clip](docs/demo.mp4) — voice-driven edits with the execution trace on the right.
+[Watch the demo](docs/demo.mp4) — 79 s, 550 KB. Voice-driven edits with the execution trace on the right.
 
 ## How it works
 
