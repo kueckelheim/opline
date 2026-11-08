@@ -3,3 +3,7 @@ models/
 config.json
 *.log
 .DS_Store
+
+# downloaded by `npm run stt:setup` (release binary + ~600 MB GGUF)
+demo/stt/bin/
+demo/stt/models/
