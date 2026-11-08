@@ -10,18 +10,13 @@ line five"*, a 0.8B model answers with exactly one edit op, and a deterministic 
 The model never regenerates the document. It emits a line-numbered, anchor-quoted op; the executor
 resolves and applies it, so every character the instruction did not mention stays byte-identical.
 
-<!-- GitHub only inlines video from user-attachments URLs (relative paths are
-     stripped). To show the player here: drag docs/demo.mp4 into a GitHub
-     issue or comment, copy the https://github.com/user-attachments/assets/…
-     URL, then replace the block below with:
-     <video src="THAT_URL" controls></video> -->
 <p align="center">
-  <a href="docs/demo.mp4">
-    <img src="docs/poster.png" width="720" alt="Opline demo: hold the mic, speak an edit, watch the op and the document update">
-  </a>
+  <img src="docs/demo.gif" width="720" alt="Opline demo: hold the mic, speak an edit, and watch the op and the document update">
 </p>
 
-[Watch the demo](docs/demo.mp4) — 79 s, 550 KB. Voice-driven edits with the execution trace on the right.
+79 s of voice-driven edits with the execution trace on the right. It is a GIF because GitHub only
+inlines video from its own attachment CDN; the same clip is also
+[here as an MP4](docs/demo.mp4) (550 KB, plays in the file view).
 
 ## How it works
 
@@ -123,7 +118,7 @@ executor/src/   executor.ts  prompt.ts  session.ts  client.ts  selfcheck.ts
 demo/src/       server.ts
 demo/public/    index.html  stt.js
 demo/stt/       setup-local.sh  serve-local.sh
-docs/           demo.mp4  poster.png
+docs/           demo.gif  demo.mp4
 ```
 
 ## License
