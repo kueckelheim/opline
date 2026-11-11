@@ -13,8 +13,8 @@ bash "${DEMO_DIR}/scripts/fetch-model.sh"
 # Accepts a path to an interpreter, or to a virtualenv root.
 has_mlx() {
   local py="$1"
-  [ -x "${py}" ] || [ -x "${py}/bin/python" ] || return 1
-  [ -x "${py}" ] || py="${py}/bin/python"
+  [ -d "${py}" ] && py="${py}/bin/python"
+  [ -f "${py}" ] && [ -x "${py}" ] || return 1
   "${py}" -c "import mlx_lm" >/dev/null 2>&1
 }
 
