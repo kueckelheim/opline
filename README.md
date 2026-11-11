@@ -11,12 +11,12 @@ The model never regenerates the document. It emits a line-numbered, anchor-quote
 resolves and applies it, so every character the instruction did not mention stays byte-identical.
 
 <p align="center">
-  <img src="docs/demo.gif" width="720" alt="Opline demo: hold the mic, speak an edit, and watch the op and the document update">
+  <img src="docs/demo.gif" alt="Opline demo: hold the mic, speak an edit, and watch the op and the document update">
 </p>
 
-79 s of voice-driven edits with the execution trace on the right. It is a GIF because GitHub only
-inlines video from its own attachment CDN; the same clip is also
-[here as an MP4](docs/demo.mp4) (550 KB, plays in the file view).
+79 s of voice-driven edits with the execution trace on the right, at the recorder's native 1080×1080.
+It is a GIF because GitHub only inlines video from its own attachment CDN; the same recording is
+[here as an MP4](docs/demo.mp4) (2.6 MB, 30 fps, full colour — it plays in the file view).
 
 ## How it works
 
