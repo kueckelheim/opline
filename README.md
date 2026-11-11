@@ -14,9 +14,11 @@ resolves and applies it, so every character the instruction did not mention stay
   <img src="docs/demo.gif" alt="Opline demo: hold the mic, speak an edit, and watch the op and the document update">
 </p>
 
-79 s of voice-driven edits with the execution trace on the right, at the recorder's native 1080×1080.
-It is a GIF because GitHub only inlines video from its own attachment CDN; the same recording is
-[here as an MP4](docs/demo.mp4) (2.6 MB, 30 fps, full colour — it plays in the file view).
+79 s of voice-driven edits with the execution trace on the right, encoded at 1676×1676 — the pixel size
+GitHub actually paints at a typical desktop width on a 2× display, so the browser never upscales it.
+GIF is the only animated format GitHub renders inline, and 256 colours are all it can hold, so the
+frame rate carries the cost: 8 fps, 128 colours. The same recording is
+[here as an MP4](docs/demo.mp4) (1080p, 30 fps, full colour — it plays in the file view).
 
 ## How it works
 

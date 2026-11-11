@@ -7,6 +7,7 @@
     "typecheck": "tsc --noEmit",
     "serve": "tsx src/server.ts",
     "model": "bash scripts/serve-model.sh",
+    "model:setup": "bash scripts/setup-model.sh",
     "stt:setup": "bash stt/setup-local.sh",
     "stt:serve": "bash stt/serve-local.sh",
     "check": "tsx ../executor/src/selfcheck.ts"
